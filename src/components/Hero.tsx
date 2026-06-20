@@ -4,7 +4,23 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { motion } from 'framer-motion';
 
 const Hero = () => {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
+  const phoneNumber = '966501416110';
+  const message = lang === 'ar'
+    ? 'السلام عليكم، أريد حجز خدمة النقل'
+    : lang === 'ur'
+    ? 'السلام علیکم، میں ٹرانسپورٹ سروس بک کرنا چاہتا ہوں'
+    : lang === 'tr'
+    ? 'Selamünaleyküm, ulaşım hizmeti rezervasyonu yapmak istiyorum'
+    : 'Assalam Alaikum, I want to book a transportation service';
+
+  const citiesText = lang === 'ar'
+    ? 'نخدم: مكة، المدينة، جدة، الرياض، الطائف، بدر، العلا، وجميع السعودية'
+    : lang === 'ur'
+    ? 'خدمات: مکہ، مدینہ، جددہ، ریاض، طائف، بدر، العلا اور پوری سعودی عرب میں'
+    : lang === 'tr'
+    ? 'Hizmet: Mekke, Medine, Cidde, Riyad, Taif, Bedir, ElUla ve tüm Suudi Arabistan'
+    : 'Serving: Makkah, Madinah, Jeddah, Riyadh, Taif, Badr, AlUla & All Saudi Arabia';
 
   return (
     <section id="home" className="relative min-h-screen flex items-center justify-center overflow-hidden">
@@ -17,7 +33,7 @@ const Hero = () => {
           }}
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black via-black/70 to-black/90" />
-        {/* Decorative Islamic Pattern */}
+        {/* Islamic Pattern Overlay */}
         <div className="absolute inset-0 opacity-5">
           <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
             <pattern id="islamic-pattern" x="0" y="0" width="100" height="100" patternUnits="userSpaceOnUse">
@@ -32,6 +48,10 @@ const Hero = () => {
           </svg>
         </div>
       </div>
+
+      {/* Kaaba-inspired decorative elements */}
+      <div className="absolute top-0 left-0 w-1/3 h-32 bg-gradient-to-r from-[#F4C430]/10 to-transparent" />
+      <div className="absolute bottom-0 right-0 w-1/3 h-32 bg-gradient-to-l from-[#0B5D3B]/10 to-transparent" />
 
       {/* Floating Gold Elements */}
       <motion.div
@@ -54,7 +74,9 @@ const Hero = () => {
         >
           {/* Badge */}
           <div className="inline-flex items-center px-4 py-2 rounded-full bg-[#F4C430]/10 border border-[#F4C430]/30 mb-6">
-            <span className="text-[#F4C430] text-sm font-medium">Premium Transportation Services</span>
+            <span className="text-[#F4C430] text-sm font-medium">
+              {lang === 'ar' ? 'خدمات نقل متميزة للحجاج والزوار' : lang === 'ur' ? 'حجاج اور زائرین کے لیے پریمیم ٹرانسپورٹ' : lang === 'tr' ? 'Hacılar için Premium Ulaşım Hizmetleri' : 'Premium Pilgrim Transportation Services'}
+            </span>
           </div>
 
           {/* Main Heading */}
@@ -66,8 +88,13 @@ const Hero = () => {
           </h1>
 
           {/* Subtitle */}
-          <p className="text-lg sm:text-xl text-gray-300 max-w-3xl mx-auto mb-10">
+          <p className="text-lg sm:text-xl text-gray-300 max-w-3xl mx-auto mb-6">
             {t.hero_subtitle}
+          </p>
+
+          {/* Service Cities */}
+          <p className="text-[#F4C430] text-sm sm:text-base mb-10 font-medium">
+            {citiesText}
           </p>
 
           {/* CTA Buttons */}
@@ -81,12 +108,12 @@ const Hero = () => {
             </Link>
 
             <a
-              href="https://wa.me/966500000000?text=Assalam%20Alaikum%2C%20I%20want%20to%20book%20transportation"
+              href={`https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="group inline-flex items-center px-8 py-4 border-2 border-[#25D366] text-[#25D366] font-semibold rounded-xl hover:bg-[#25D366] hover:text-white transition-all"
+              className="group inline-flex items-center px-8 py-4 bg-[#25D366] text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-[#25D366]/20 transition-all"
             >
-              <MessageCircle className="w-5 h-5 mr-2 rtl:ml-2 rtl:mr-0" />
+              <MessageCircle className="w-5 h-5 mr-2 rtl:ml-2 rtl:mr-0 fill-white" />
               {t.cta_whatsapp}
             </a>
 
@@ -102,10 +129,10 @@ const Hero = () => {
           {/* Trust Indicators */}
           <div className="mt-16 grid grid-cols-2 sm:grid-cols-4 gap-6">
             {[
-              { value: '15+', label: 'Years Experience' },
-              { value: '50K+', label: 'Happy Pilgrims' },
-              { value: '100+', label: 'Luxury Vehicles' },
-              { value: '24/7', label: 'Support Available' },
+              { value: '15+', label: lang === 'ar' ? 'سنة خبرة' : lang === 'ur' ? 'سال کا تجربہ' : lang === 'tr' ? 'Yıl Deneyim' : 'Years Experience' },
+              { value: '50K+', label: lang === 'ar' ? 'حاج سعيد' : lang === 'ur' ? 'خوش حجاج' : lang === 'tr' ? 'Mutlu Hacı' : 'Happy Pilgrims' },
+              { value: '100+', label: lang === 'ar' ? 'مركبة فاخرة' : lang === 'ur' ? 'لگژری گاڑیاں' : lang === 'tr' ? 'Lüks Araç' : 'Luxury Vehicles' },
+              { value: '24/7', label: lang === 'ar' ? 'دعم مستمر' : lang === 'ur' ? 'مسلسل سپورٹ' : lang === 'tr' ? 'Sürekli Destek' : 'Support Available' },
             ].map((stat, index) => (
               <motion.div
                 key={index}

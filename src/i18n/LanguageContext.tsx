@@ -25,7 +25,7 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
     document.documentElement.dir = lang === 'ar' || lang === 'ur' ? 'rtl' : 'ltr';
   }, [lang]);
 
-  const t = translations[lang];
+  const t = translations[lang] || translations.en;
   const dir = lang === 'ar' || lang === 'ur' ? 'rtl' : 'ltr';
 
   return (

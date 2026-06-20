@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Star, Check, X, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { Check, Trash2, Star } from 'lucide-react';
 
 interface Testimonial {
   id: string;
@@ -9,8 +8,8 @@ interface Testimonial {
   location: string;
   rating: number;
   text_en: string;
-  text_ar: string | null;
-  text_ur: string | null;
+  text_ar?: string;
+  text_ur?: string;
   is_approved: boolean;
   created_at: string;
 }
@@ -18,72 +17,42 @@ interface Testimonial {
 const AdminTestimonials = () => {
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'approved'>('all');
+  const [filter, setFilter] = useState<'all' | 'approved' | 'pending'>('all');
 
-  useEffect(() => {
-    fetchTestimonials();
-  }, []);
-
-  const fetchTestimonials = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('testimonials')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setTestimonials(data || []);
-    } catch (error) {
-      console.error('Error fetching testimonials:', error);
-    } finally {
-      setLoading(false);
-    }
+  const fetch = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('testimonials').select('*').order('created_at', { ascending: false });
+    if (data) setTestimonials(data);
+    setLoading(false);
   };
 
-  const toggleApproval = async (testimonial: Testimonial) => {
-    try {
-      const { error } = await supabase
-        .from('testimonials')
-        .update({ is_approved: !testimonial.is_approved })
-        .eq('id', testimonial.id);
+  useEffect(() => { fetch(); }, []);
 
-      if (error) throw error;
-      fetchTestimonials();
-    } catch (error) {
-      console.error('Error updating testimonial:', error);
-    }
+  const toggleApprove = async (id: string, current: boolean) => {
+    await supabase.from('testimonials').update({ is_approved: !current }).eq('id', id);
+    setTestimonials(prev => prev.map(t => t.id === id ? { ...t, is_approved: !current } : t));
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this testimonial?')) return;
-    try {
-      const { error } = await supabase.from('testimonials').delete().eq('id', id);
-      if (error) throw error;
-      fetchTestimonials();
-    } catch (error) {
-      console.error('Error deleting testimonial:', error);
-    }
+  const del = async (id: string) => {
+    if (!confirm('Delete this testimonial?')) return;
+    await supabase.from('testimonials').delete().eq('id', id);
+    setTestimonials(prev => prev.filter(t => t.id !== id));
   };
 
-  const filteredTestimonials = testimonials.filter((t) => {
-    if (filter === 'pending') return !t.is_approved;
-    if (filter === 'approved') return t.is_approved;
-    return true;
-  });
+  const displayed = testimonials.filter(t =>
+    filter === 'all' ? true : filter === 'approved' ? t.is_approved : !t.is_approved
+  );
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-white">Testimonials Management</h1>
-
-        <div className="flex gap-2">
-          {['all', 'pending', 'approved'].map((f) => (
+    <div>
+      <div className="flex items-center justify-between mb-5">
+        <h2 className="text-white font-bold text-xl">Testimonials</h2>
+        <div className="flex gap-1 bg-black border border-white/10 rounded-lg p-1">
+          {(['all', 'approved', 'pending'] as const).map(f => (
             <button
               key={f}
-              onClick={() => setFilter(f as 'all' | 'pending' | 'approved')}
-              className={`px-4 py-2 rounded-lg capitalize ${
-                filter === f ? 'bg-[#F4C430] text-black' : 'bg-white/5 text-gray-400'
-              }`}
+              onClick={() => setFilter(f)}
+              className={`px-3 py-1 text-xs rounded capitalize transition-all ${filter === f ? 'bg-[#F4C430] text-black font-semibold' : 'text-gray-400 hover:text-white'}`}
             >
               {f}
             </button>
@@ -92,75 +61,51 @@ const AdminTestimonials = () => {
       </div>
 
       {loading ? (
-        <div className="text-center py-20">
-          <div className="animate-spin w-12 h-12 border-4 border-[#F4C430] border-t-transparent rounded-full mx-auto" />
+        <div className="flex items-center justify-center h-40">
+          <div className="animate-spin w-8 h-8 border-2 border-[#F4C430] border-t-transparent rounded-full" />
         </div>
       ) : (
-        <div className="grid sm:grid-cols-2 gap-6">
-          {filteredTestimonials.map((testimonial) => (
-            <motion.div
-              key={testimonial.id}
-              className={`p-6 rounded-xl border ${
-                testimonial.is_approved
-                  ? 'bg-white/5 border-white/10'
-                  : 'bg-amber-500/5 border-amber-500/20'
-              }`}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-white">{testimonial.name}</h3>
-                  <p className="text-gray-400 text-sm">{testimonial.location}</p>
+        <div className="space-y-4">
+          {displayed.length === 0 && (
+            <div className="text-center py-12 text-gray-500">No testimonials found</div>
+          )}
+          {displayed.map(t => (
+            <div key={t.id} className={`bg-black rounded-xl border p-4 ${t.is_approved ? 'border-[#0B5D3B]/20' : 'border-white/10'}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-white font-semibold text-sm">{t.name}</span>
+                    <span className="text-gray-500 text-xs">{t.location}</span>
+                    <div className="flex gap-0.5">
+                      {Array.from({ length: t.rating }).map((_, i) => (
+                        <Star key={i} className="w-3 h-3 text-[#F4C430] fill-[#F4C430]" />
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-gray-400 text-sm leading-relaxed">{t.text_en}</p>
+                  {t.text_ar && <p className="text-gray-500 text-xs mt-1" dir="rtl">{t.text_ar}</p>}
                 </div>
-                <div className="flex items-center">
-                  {[...Array(5)].map((_, i) => (
-                    <Star
-                      key={i}
-                      className={`w-4 h-4 ${
-                        i < testimonial.rating ? 'fill-[#F4C430] text-[#F4C430]' : 'text-gray-600'
-                      }`}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-2 mb-4">
-                <p className="text-gray-300 italic">"{testimonial.text_en}"</p>
-                {testimonial.text_ar && (
-                  <p className="text-gray-400 text-sm" dir="rtl">"{testimonial.text_ar}"</p>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between pt-4 border-t border-white/10">
-                <span className={`px-3 py-1 rounded-full text-xs ${
-                  testimonial.is_approved
-                    ? 'bg-[#0B5D3B]/20 text-[#0B5D3B]'
-                    : 'bg-amber-500/20 text-amber-400'
-                }`}>
-                  {testimonial.is_approved ? 'Approved' : 'Pending'}
-                </span>
-
-                <div className="flex gap-2">
+                <div className="flex gap-2 shrink-0">
                   <button
-                    onClick={() => toggleApproval(testimonial)}
-                    className={`px-3 py-2 rounded-lg ${
-                      testimonial.is_approved
-                        ? 'bg-amber-500/20 text-amber-400'
-                        : 'bg-[#0B5D3B]/20 text-[#0B5D3B]'
+                    onClick={() => toggleApprove(t.id, t.is_approved)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      t.is_approved
+                        ? 'bg-[#0B5D3B]/10 text-[#0B5D3B] hover:bg-red-500/10 hover:text-red-400'
+                        : 'bg-[#0B5D3B]/10 text-[#0B5D3B] hover:bg-[#0B5D3B]/20'
                     }`}
                   >
-                    {testimonial.is_approved ? <X className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+                    <Check className="w-3.5 h-3.5" />
+                    {t.is_approved ? 'Approved' : 'Approve'}
                   </button>
                   <button
-                    onClick={() => handleDelete(testimonial.id)}
-                    className="p-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20"
+                    onClick={() => del(t.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg text-xs hover:bg-red-500/20 transition-all"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       )}

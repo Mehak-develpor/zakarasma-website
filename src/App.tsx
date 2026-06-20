@@ -5,6 +5,7 @@ import { LanguageProvider } from './i18n/LanguageContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import WhatsAppButton from './components/WhatsAppButton';
+import SEO from './components/SEO';
 
 // Pages
 import HomePage from './pages/HomePage';
@@ -12,13 +13,13 @@ import ServicesPage from './pages/ServicesPage';
 import FleetPage from './pages/FleetPage';
 import ContactPage from './pages/ContactPage';
 import AboutPage from './pages/AboutPage';
+import TrackBookingPage from './pages/TrackBookingPage';
 
 // Admin
 import AdminLogin from './pages/admin/AdminLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import './index.css';
 
-// Layout for public pages
 const PublicLayout = ({ children }: { children: React.ReactNode }) => (
   <div className="min-h-screen bg-black text-white overflow-x-hidden">
     <Header />
@@ -28,24 +29,18 @@ const PublicLayout = ({ children }: { children: React.ReactNode }) => (
   </div>
 );
 
-// Admin Route Guard
 const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
-    checkAuth();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_OUT') {
-        setIsAuthenticated(false);
-      }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsAuthenticated(!!session);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      setIsAuthenticated(!!session);
     });
     return () => subscription.unsubscribe();
   }, []);
-
-  const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    setIsAuthenticated(!!session);
-  };
 
   if (isAuthenticated === null) {
     return (
@@ -55,27 +50,23 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
-  if (!isAuthenticated) {
-    return <Navigate to="/admin/login" replace />;
-  }
-
-  return <>{children}</>;
+  return isAuthenticated ? <>{children}</> : <Navigate to="/admin/login" replace />;
 };
 
 function App() {
   return (
     <LanguageProvider>
       <BrowserRouter>
+        <SEO />
         <Routes>
-          {/* Public Routes */}
           <Route path="/" element={<PublicLayout><HomePage /></PublicLayout>} />
           <Route path="/services" element={<PublicLayout><ServicesPage /></PublicLayout>} />
           <Route path="/fleet" element={<PublicLayout><FleetPage /></PublicLayout>} />
           <Route path="/contact" element={<PublicLayout><ContactPage /></PublicLayout>} />
           <Route path="/about" element={<PublicLayout><AboutPage /></PublicLayout>} />
+          <Route path="/track" element={<PublicLayout><TrackBookingPage /></PublicLayout>} />
 
-          {/* Admin Routes */}
-          <Route path="/admin/login" element={<AdminLogin onLogin={() => window.location.href = '/admin'} />} />
+          <Route path="/admin/login" element={<AdminLogin onLogin={() => {}} />} />
           <Route
             path="/admin/*"
             element={
@@ -85,7 +76,6 @@ function App() {
             }
           />
 
-          {/* Catch all - redirect to home */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

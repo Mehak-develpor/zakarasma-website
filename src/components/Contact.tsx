@@ -1,349 +1,302 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { MapPin, Phone, Mail, MessageCircle } from 'lucide-react';
+import { Phone, Mail, MapPin, MessageCircle, CheckCircle, AlertCircle, Copy, ExternalLink } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 import { useLanguage } from '../i18n/LanguageContext';
 
-const Contact: React.FC = () => {
-  const { t } = useLanguage();
-  const [formData, setFormData] = useState({
-    name: '',
-    country: '',
-    phone: '',
-    whatsapp: '',
-    pickup: '',
-    destination: '',
-    date: '',
-    time: '',
-    passengers: '1',
-    vehicle: 'camry',
-    message: '',
-  });
+interface BookingForm {
+  name: string;
+  country: string;
+  email: string;
+  phone: string;
+  whatsapp: string;
+  pickup_location: string;
+  destination: string;
+  booking_date: string;
+  booking_time: string;
+  passengers: number;
+  vehicle_type: string;
+  requirements: string;
+  message: string;
+}
 
-  const vehicleOptions = [
-    { value: 'camry', label: t.vehicle1_name },
-    { value: 'staria', label: t.vehicle2_name },
-    { value: 'hiace', label: t.vehicle3_name },
-    { value: 'yukon', label: t.vehicle4_name },
-    { value: 'tahoe', label: t.vehicle5_name },
-    { value: 'vclass', label: t.vehicle6_name },
+const INITIAL: BookingForm = {
+  name: '', country: '', email: '', phone: '', whatsapp: '', pickup_location: '',
+  destination: '', booking_date: '', booking_time: '', passengers: 1,
+  vehicle_type: 'sedan', requirements: '', message: '',
+};
+
+const Contact = () => {
+  const { t, lang } = useLanguage();
+  const [form, setForm] = useState<BookingForm>(INITIAL);
+  const [errors, setErrors] = useState<Partial<BookingForm>>({});
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [bookingId, setBookingId] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  const phoneNumber = '+966 50 141 6110';
+  const whatsappNumber = '966501416110';
+  const emailPrimary = 'Zakarasma@harmain.com';
+  const emailSecondary = 'Zakarasma@umrahtaxi.com';
+  const mapUrl = 'https://maps.app.goo.gl/w47SGshx3WfPcx46A';
+
+  const validate = () => {
+    const errs: Partial<BookingForm> = {};
+    if (!form.name.trim()) errs.name = 'Required';
+    if (!form.country.trim()) errs.country = 'Required';
+    if (!form.whatsapp.trim()) errs.whatsapp = 'Required';
+    if (!form.pickup_location.trim()) errs.pickup_location = 'Required';
+    if (!form.destination.trim()) errs.destination = 'Required';
+    if (!form.booking_date) errs.booking_date = 'Required';
+    if (!form.booking_time) errs.booking_time = 'Required';
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const set = (field: keyof BookingForm, value: string | number) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+    setErrors(prev => ({ ...prev, [field]: undefined }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validate()) return;
+    setStatus('loading');
+    try {
+      const { data, error } = await supabase.from('bookings').insert([form]).select('id').single();
+      if (error) throw error;
+      setBookingId(data.id.slice(0, 8).toUpperCase());
+      setStatus('success');
+      setForm(INITIAL);
+    } catch {
+      setStatus('error');
+    }
+  };
+
+  const copyId = () => {
+    navigator.clipboard.writeText(bookingId);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const vehicles = [
+    { value: 'hyundai-h1', label: 'Hyundai H1 (8 pax)' },
+    { value: 'hyundai-staria', label: 'Hyundai Staria (7 pax)' },
+    { value: 'hyundai-starex', label: 'Hyundai Starex (9 pax)' },
+    { value: 'toyota-hiace', label: 'Toyota Hiace (12 pax)' },
+    { value: 'toyota-highroof', label: 'Toyota High Roof (10 pax)' },
+    { value: 'sedan', label: 'Sedan (4 pax)' },
+    { value: 'suv', label: 'SUV (6 pax)' },
+    { value: 'gmc', label: 'GMC (7 pax)' },
+    { value: 'coaster', label: 'Coaster (25 pax)' },
   ];
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+  const successText = {
+    title: lang === 'ar' ? 'تم تأكيد الحجز!' : lang === 'ur' ? 'بکنگ تصدیق ہو گئی!' : lang === 'tr' ? 'Rezervasyon Gönderildi!' : 'Booking Submitted!',
+    subtitle: lang === 'ar' ? 'سنتواصل معك قريباً عبر الواتساب.' : lang === 'ur' ? 'ہم جلد واٹس اپ پر رابطہ کریں گے۔' : lang === 'tr' ? 'Size kısa süre içinde WhatsApp üzerinden ulaşacağız.' : "We'll contact you shortly via WhatsApp.",
+    saveText: lang === 'ar' ? 'احفظ هذا الرقم لتتبع حجزك' : lang === 'ur' ? 'اپنی بکنگ ٹریک کرنے کے لیے محفوظ کریں' : lang === 'tr' ? 'Rezervasyonunuzu takip etmek için kaydedin' : 'Save this to track your booking status',
+    newBooking: lang === 'ar' ? 'حجز آخر' : lang === 'ur' ? 'نئی بکنگ' : lang === 'tr' ? 'Yeni Rezervasyon' : 'New Booking',
+    bookingId: lang === 'ar' ? 'رقم الحجز' : lang === 'ur' ? 'بکنگ ID' : lang === 'tr' ? 'Rezervasyon ID' : 'Booking ID',
   };
 
-  const handleSubmitWhatsApp = (e: React.FormEvent) => {
-    e.preventDefault();
+  const fieldClass = (field: keyof BookingForm) =>
+    `w-full px-4 py-3 bg-white/5 border rounded-xl text-white text-sm placeholder-gray-500 focus:outline-none focus:border-[#F4C430] transition-colors ${
+      errors[field] ? 'border-red-500' : 'border-white/10'
+    }`;
 
-    const message = `Assalam Alaikum!
+  if (status === 'success') {
+    return (
+      <div className="py-24 bg-black min-h-screen flex items-center">
+        <div className="max-w-md mx-auto px-4 text-center">
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="w-20 h-20 bg-[#0B5D3B]/20 rounded-full mx-auto mb-6 flex items-center justify-center"
+          >
+            <CheckCircle className="w-10 h-10 text-[#0B5D3B]" />
+          </motion.div>
+          <h2 className="text-2xl font-bold text-white mb-2">{successText.title}</h2>
+          <p className="text-gray-400 mb-6">{successText.subtitle}</p>
+          <div className="bg-white/5 rounded-xl p-4 mb-6">
+            <p className="text-gray-400 text-sm mb-2">{successText.bookingId}</p>
+            <div className="flex items-center justify-center gap-3">
+              <span className="text-[#F4C430] text-2xl font-black tracking-widest" dir="ltr">{bookingId}</span>
+              <button onClick={copyId} className="text-gray-400 hover:text-white transition-colors">
+                <Copy className="w-4 h-4" />
+              </button>
+            </div>
+            {copied && <p className="text-[#0B5D3B] text-xs mt-1">{lang === 'ar' ? 'تم النسخ!' : lang === 'ur' ? 'کاپی کیا!' : lang === 'tr' ? 'Kopyalandı!' : 'Copied!'}</p>}
+            <p className="text-gray-500 text-xs mt-2">{successText.saveText}</p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              onClick={() => setStatus('idle')}
+              className="px-6 py-3 bg-[#F4C430] text-black font-semibold rounded-xl"
+            >
+              {successText.newBooking}
+            </button>
+            <a
+              href={`https://wa.me/${whatsappNumber}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center px-6 py-3 bg-[#25D366] text-white font-semibold rounded-xl"
+            >
+              <MessageCircle className="w-4 h-4 mr-2" />
+              WhatsApp
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-New Booking Request:
------------------
-Name: ${formData.name}
-Country: ${formData.country}
-Phone: ${formData.phone}
-WhatsApp: ${formData.whatsapp}
-Pickup: ${formData.pickup}
-Destination: ${formData.destination}
-Date: ${formData.date}
-Time: ${formData.time}
-Passengers: ${formData.passengers}
-Vehicle: ${vehicleOptions.find((v) => v.value === formData.vehicle)?.label}
-
-Message: ${formData.message}`;
-
-    const encodedMessage = encodeURIComponent(message);
-    window.open(`https://wa.me/966500000000?text=${encodedMessage}`, '_blank');
-  };
+  const errorText = lang === 'ar' ? 'حدث خطأ. حاول مرة أخرى.' : lang === 'ur' ? 'خطا ہوا۔ دوبارہ کوشش کریں۔' : lang === 'tr' ? 'Bir hata oluştu. Tekrar deneyin.' : 'Something went wrong. Please try again.';
+  const loadingText = lang === 'ar' ? 'جاري الإرسال...' : lang === 'ur' ? 'بھیج رہے ہیں...' : lang === 'tr' ? 'Gönderiliyor...' : 'Submitting...';
 
   return (
-    <section
-      id="contact"
-      className="relative py-24 bg-gradient-to-b from-gray-900 to-black overflow-hidden"
-    >
-      {/* Background */}
-      <div className="absolute inset-0">
-        <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-[#0B5D3B]/10 to-transparent" />
-      </div>
-
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Section Header */}
+    <section id="contact" className="py-24 bg-black">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div
-          className="text-center mb-16"
+          className="text-center mb-14"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
         >
           <span className="inline-block px-4 py-1 bg-[#F4C430]/10 text-[#F4C430] text-sm font-medium rounded-full mb-4">
-            {t.contact}
+            {t.contact_subtitle}
           </span>
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4">
-            {t.contact_title}
-          </h2>
-          <p className="text-xl text-gray-400">{t.contact_subtitle}</p>
+          <h2 className="text-3xl sm:text-4xl font-bold text-white">{t.contact_title}</h2>
         </motion.div>
 
-        <div className="grid lg:grid-cols-2 gap-12">
+        <div className="grid lg:grid-cols-5 gap-10">
           {/* Contact Info */}
-          <motion.div
-            initial={{ opacity: 0, x: -50 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-          >
-            <div className="space-y-6">
-              {/* WhatsApp Card */}
-              <a
-                href="https://wa.me/966500000000"
-                target="_blank"
+          <div className="lg:col-span-2 space-y-5">
+            {[
+              { icon: Phone, label: t.contact_call, value: phoneNumber, href: `tel:${whatsappNumber}`, color: '#F4C430' },
+              { icon: MessageCircle, label: t.contact_whatsapp, value: phoneNumber, href: `https://wa.me/${whatsappNumber}`, color: '#25D366' },
+              { icon: Mail, label: t.contact_email, value: emailPrimary, href: `mailto:${emailPrimary}`, color: '#F4C430' },
+              { icon: Mail, label: t.contact_email, value: emailSecondary, href: `mailto:${emailSecondary}`, color: '#0B5D3B' },
+              { icon: MapPin, label: t.contact_location, value: lang === 'ar' ? 'مكة المكرمة، السعودية' : lang === 'ur' ? 'مکہ مکرمہ، سعودی عرب' : lang === 'tr' ? 'Mekke, Suudi Arabistan' : 'Makkah, Saudi Arabia', href: mapUrl, color: '#F4C430', external: true },
+            ].map(({ icon: Icon, label, value, href, color, external }, i) => (
+              <motion.a
+                key={i}
+                href={href}
+                target={external ? '_blank' : undefined}
                 rel="noopener noreferrer"
-                className="group flex items-center p-6 bg-[#25D366]/10 border border-[#25D366]/30 rounded-xl hover:bg-[#25D366] transition-all"
+                className="flex items-center gap-4 p-4 bg-white/3 rounded-xl border border-white/8 hover:border-[#F4C430]/20 transition-all group"
+                initial={{ opacity: 0, x: -20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
               >
-                <div className="p-4 bg-[#25D366] rounded-xl group-hover:bg-white transition-colors">
-                  <MessageCircle className="w-6 h-6 text-white group-hover:text-[#25D366]" />
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${color}15` }}>
+                  <Icon className="w-5 h-5" style={{ color }} />
                 </div>
-                <div className="ml-4 rtl:ml-0 rtl:mr-4 rtl:text-right">
-                  <h3 className="text-lg font-semibold text-white group-hover:text-white">
-                    {t.contact_whatsapp}
-                  </h3>
-                  <p className="text-[#25D366] group-hover:text-white/80">+966 50 000 0000</p>
+                <div className="flex-1 min-w-0">
+                  <div className="text-gray-400 text-xs mb-0.5">{label}</div>
+                  <div className="text-white font-medium text-sm truncate" dir="ltr">{value}</div>
                 </div>
-              </a>
+                {external && <ExternalLink className="w-4 h-4 text-gray-500" />}
+              </motion.a>
+            ))}
 
-              {/* Phone Card */}
-              <a
-                href="tel:+966500000000"
-                className="group flex items-center p-6 bg-white/5 border border-white/10 rounded-xl hover:border-[#F4C430]/30 transition-all"
-              >
-                <div className="p-4 bg-[#F4C430] rounded-xl">
-                  <Phone className="w-6 h-6 text-black" />
-                </div>
-                <div className="ml-4 rtl:ml-0 rtl:mr-4 rtl:text-right">
-                  <h3 className="text-lg font-semibold text-white">{t.contact_call}</h3>
-                  <p className="text-gray-400 group-hover:text-[#F4C430]">+966 50 000 0000</p>
-                </div>
-              </a>
-
-              {/* Email Card */}
-              <a
-                href="mailto:info@zakarasma.com"
-                className="group flex items-center p-6 bg-white/5 border border-white/10 rounded-xl hover:border-[#0B5D3B]/30 transition-all"
-              >
-                <div className="p-4 bg-[#0B5D3B] rounded-xl">
-                  <Mail className="w-6 h-6 text-white" />
-                </div>
-                <div className="ml-4 rtl:ml-0 rtl:mr-4 rtl:text-right">
-                  <h3 className="text-lg font-semibold text-white">{t.contact_email}</h3>
-                  <p className="text-gray-400 group-hover:text-[#0B5D3B]">info@zakarasma.com</p>
-                </div>
-              </a>
-
-              {/* Location Card */}
-              <div className="flex items-start p-6 bg-white/5 border border-white/10 rounded-xl">
-                <div className="p-4 bg-white/10 rounded-xl">
-                  <MapPin className="w-6 h-6 text-[#F4C430]" />
-                </div>
-                <div className="ml-4 rtl:ml-0 rtl:mr-4 rtl:text-right">
-                  <h3 className="text-lg font-semibold text-white">{t.contact_location}</h3>
-                  <p className="text-gray-400">Makkah, Al Madinah Region</p>
-                  <p className="text-gray-400">Saudi Arabia</p>
-                </div>
-              </div>
-
-              {/* Google Map */}
-              <div className="overflow-hidden rounded-xl border border-white/10">
-                <iframe
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d928800!2d39.8!3d21.4!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x15c3c7f2d3d3d3d3%3A0x3d3d3d3d3d3d3d3d!2sMakkah%2C%20Saudi%20Arabia!5e0!3m2!1sen!2s!4v1234567890123"
-                  width="100%"
-                  height="200"
-                  style={{ border: 0 }}
-                  allowFullScreen
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  title="Location Map"
-                />
-              </div>
-            </div>
-          </motion.div>
+            {/* Quick WhatsApp Button */}
+            <motion.a
+              href={`https://wa.me/${whatsappNumber}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-3 p-4 bg-[#25D366] text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-[#25D366]/20 transition-all"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+            >
+              <MessageCircle className="w-5 h-5 fill-white" />
+              {t.cta_whatsapp}
+            </motion.a>
+          </div>
 
           {/* Booking Form */}
           <motion.div
-            initial={{ opacity: 0, x: 50 }}
+            className="lg:col-span-3"
+            initial={{ opacity: 0, x: 20 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
           >
-            <div className="p-8 bg-gradient-to-br from-white/10 to-white/5 rounded-2xl border border-white/10 backdrop-blur-sm">
-              <h3 className="text-2xl font-bold text-white mb-6">{t.booking_title}</h3>
+            <div className="bg-white/3 rounded-2xl border border-white/8 p-6 sm:p-8">
+              <h3 className="text-white font-bold text-lg mb-6">{t.booking_title}</h3>
 
-              <form onSubmit={handleSubmitWhatsApp} className="space-y-4">
-                {/* Name & Country */}
+              {status === 'error' && (
+                <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl mb-4">
+                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                  <p className="text-red-400 text-sm">{errorText}</p>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm text-gray-400 mb-2">{t.form_name} *</label>
-                    <input
-                      type="text"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleInputChange}
-                      required
-                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:border-[#F4C430] focus:outline-none transition-colors"
-                      placeholder="Enter your name"
-                    />
+                    <input placeholder={`${t.form_name} *`} value={form.name} onChange={e => set('name', e.target.value)} className={fieldClass('name')} />
+                    {errors.name && <p className="text-red-400 text-xs mt-1">{errors.name}</p>}
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-400 mb-2">{t.form_country} *</label>
-                    <input
-                      type="text"
-                      name="country"
-                      value={formData.country}
-                      onChange={handleInputChange}
-                      required
-                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:border-[#F4C430] focus:outline-none transition-colors"
-                      placeholder="Your country"
-                    />
+                    <input placeholder={`${t.form_country} *`} value={form.country} onChange={e => set('country', e.target.value)} className={fieldClass('country')} />
+                    {errors.country && <p className="text-red-400 text-xs mt-1">{errors.country}</p>}
                   </div>
                 </div>
 
-                {/* Phone & WhatsApp */}
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm text-gray-400 mb-2">{t.form_phone}</label>
-                    <input
-                      type="tel"
-                      name="phone"
-                      value={formData.phone}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:border-[#F4C430] focus:outline-none transition-colors"
-                      placeholder="+1 234 567 890"
-                    />
+                    <input placeholder={t.form_email} type="email" value={form.email} onChange={e => set('email', e.target.value)} className={fieldClass('email')} />
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-400 mb-2">{t.form_whatsapp} *</label>
-                    <input
-                      type="tel"
-                      name="whatsapp"
-                      value={formData.whatsapp}
-                      onChange={handleInputChange}
-                      required
-                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:border-[#F4C430] focus:outline-none transition-colors"
-                      placeholder="+966 50 000 0000"
-                    />
+                    <input placeholder={`${t.form_whatsapp} *`} value={form.whatsapp} onChange={e => set('whatsapp', e.target.value)} className={fieldClass('whatsapp')} dir="ltr" />
+                    {errors.whatsapp && <p className="text-red-400 text-xs mt-1">{errors.whatsapp}</p>}
                   </div>
                 </div>
 
-                {/* Pickup & Destination */}
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <input placeholder={t.form_phone} value={form.phone} onChange={e => set('phone', e.target.value)} className={fieldClass('phone')} dir="ltr" />
+                  <input type="number" min={1} max={50} placeholder={`${t.form_passengers} *`} value={form.passengers} onChange={e => set('passengers', parseInt(e.target.value) || 1)} className={fieldClass('passengers')} />
+                </div>
+
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm text-gray-400 mb-2">{t.form_pickup} *</label>
-                    <input
-                      type="text"
-                      name="pickup"
-                      value={formData.pickup}
-                      onChange={handleInputChange}
-                      required
-                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:border-[#F4C430] focus:outline-none transition-colors"
-                      placeholder="Pickup location"
-                    />
+                    <input placeholder={`${t.form_pickup} *`} value={form.pickup_location} onChange={e => set('pickup_location', e.target.value)} className={fieldClass('pickup_location')} />
+                    {errors.pickup_location && <p className="text-red-400 text-xs mt-1">{errors.pickup_location}</p>}
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-400 mb-2">{t.form_destination} *</label>
-                    <input
-                      type="text"
-                      name="destination"
-                      value={formData.destination}
-                      onChange={handleInputChange}
-                      required
-                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:border-[#F4C430] focus:outline-none transition-colors"
-                      placeholder="Drop-off location"
-                    />
+                    <input placeholder={`${t.form_destination} *`} value={form.destination} onChange={e => set('destination', e.target.value)} className={fieldClass('destination')} />
+                    {errors.destination && <p className="text-red-400 text-xs mt-1">{errors.destination}</p>}
                   </div>
                 </div>
 
-                {/* Date, Time, Passengers */}
-                <div className="grid sm:grid-cols-3 gap-4">
+                <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm text-gray-400 mb-2">{t.form_date} *</label>
-                    <input
-                      type="date"
-                      name="date"
-                      value={formData.date}
-                      onChange={handleInputChange}
-                      required
-                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:border-[#F4C430] focus:outline-none transition-colors"
-                    />
+                    <input type="date" value={form.booking_date} onChange={e => set('booking_date', e.target.value)} min={new Date().toISOString().split('T')[0]} className={fieldClass('booking_date')} />
+                    {errors.booking_date && <p className="text-red-400 text-xs mt-1">{errors.booking_date}</p>}
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-400 mb-2">{t.booking_time} *</label>
-                    <input
-                      type="time"
-                      name="time"
-                      value={formData.time}
-                      onChange={handleInputChange}
-                      required
-                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:border-[#F4C430] focus:outline-none transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-2">{t.booking_passengers}</label>
-                    <select
-                      name="passengers"
-                      value={formData.passengers}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:border-[#F4C430] focus:outline-none transition-colors"
-                    >
-                      {[...Array(12)].map((_, i) => (
-                        <option key={i} value={i + 1} className="bg-gray-900">
-                          {i + 1} {t.passengers}
-                        </option>
-                      ))}
-                    </select>
+                    <input type="time" value={form.booking_time} onChange={e => set('booking_time', e.target.value)} className={fieldClass('booking_time')} />
+                    {errors.booking_time && <p className="text-red-400 text-xs mt-1">{errors.booking_time}</p>}
                   </div>
                 </div>
 
-                {/* Vehicle Type */}
-                <div>
-                  <label className="block text-sm text-gray-400 mb-2">{t.booking_vehicle}</label>
-                  <select
-                    name="vehicle"
-                    value={formData.vehicle}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:border-[#F4C430] focus:outline-none transition-colors"
-                  >
-                    {vehicleOptions.map((option) => (
-                      <option key={option.value} value={option.value} className="bg-gray-900">
-                        {option.label}
-                      </option>
-                    ))}
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <select value={form.vehicle_type} onChange={e => set('vehicle_type', e.target.value)} className={fieldClass('vehicle_type')}>
+                    {vehicles.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
                   </select>
+                  <input placeholder={t.form_requirements} value={form.requirements} onChange={e => set('requirements', e.target.value)} className={fieldClass('requirements')} />
                 </div>
 
-                {/* Message */}
-                <div>
-                  <label className="block text-sm text-gray-400 mb-2">{t.form_message}</label>
-                  <textarea
-                    name="message"
-                    value={formData.message}
-                    onChange={handleInputChange}
-                    rows={3}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:border-[#F4C430] focus:outline-none transition-colors resize-none"
-                    placeholder="Any special requests or notes..."
-                  />
-                </div>
+                <textarea rows={3} placeholder={t.form_message} value={form.message} onChange={e => set('message', e.target.value)} className={`${fieldClass('message')} resize-none`} />
 
-                {/* Submit Button */}
-                <motion.button
+                <button
                   type="submit"
-                  className="w-full flex items-center justify-center px-8 py-4 bg-[#25D366] text-white font-semibold rounded-xl hover:bg-[#1DA851] transition-all shadow-lg shadow-[#25D366]/20"
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.99 }}
+                  disabled={status === 'loading'}
+                  className="w-full py-4 bg-gradient-to-r from-[#F4C430] to-[#e6b52e] text-black font-bold rounded-xl hover:shadow-lg hover:shadow-[#F4C430]/20 transition-all disabled:opacity-60"
                 >
-                  <MessageCircle className="w-5 h-5 mr-2 rtl:ml-2 rtl:mr-0" />
-                  {t.booking_send}
-                </motion.button>
-
-                <p className="text-center text-sm text-gray-500">
-                  * {t.cta_whatsapp} - {t.contact_whatsapp}
-                </p>
+                  {status === 'loading' ? loadingText : t.form_booking}
+                </button>
               </form>
             </div>
           </motion.div>

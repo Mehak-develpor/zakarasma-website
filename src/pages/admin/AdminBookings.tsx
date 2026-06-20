@@ -1,13 +1,12 @@
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Search, Eye, CheckCircle, XCircle, Phone, MapPin, Calendar, Users, Car } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
+import { Trash2, RefreshCw, Search, ChevronDown } from 'lucide-react';
 
 interface Booking {
   id: string;
   name: string;
   country: string;
-  phone: string | null;
+  phone?: string;
   whatsapp: string;
   pickup_location: string;
   destination: string;
@@ -15,261 +14,189 @@ interface Booking {
   booking_time: string;
   passengers: number;
   vehicle_type: string;
-  message: string | null;
+  message?: string;
   status: string;
   created_at: string;
 }
 
+const STATUS_OPTIONS = ['pending', 'confirmed', 'completed', 'cancelled'];
+
+const statusColor: Record<string, string> = {
+  pending: 'bg-yellow-400/10 text-yellow-400 border-yellow-400/20',
+  confirmed: 'bg-[#0B5D3B]/10 text-[#0B5D3B] border-[#0B5D3B]/20',
+  completed: 'bg-[#F4C430]/10 text-[#F4C430] border-[#F4C430]/20',
+  cancelled: 'bg-red-400/10 text-red-400 border-red-400/20',
+};
+
 const AdminBookings = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [filtered, setFiltered] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('all');
+  const [expanded, setExpanded] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchBookings();
+  const fetchBookings = useCallback(async () => {
+    setLoading(true);
+    const { data } = await supabase.from('bookings').select('*').order('created_at', { ascending: false });
+    if (data) {
+      setBookings(data);
+      setFiltered(data);
+    }
+    setLoading(false);
   }, []);
 
-  const fetchBookings = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('*')
-        .order('created_at', { ascending: false });
+  useEffect(() => { fetchBookings(); }, [fetchBookings]);
 
-      if (error) throw error;
-      setBookings(data || []);
-    } catch (error) {
-      console.error('Error fetching bookings:', error);
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    let rows = bookings;
+    if (filter !== 'all') rows = rows.filter(b => b.status === filter);
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      rows = rows.filter(b =>
+        b.name.toLowerCase().includes(q) ||
+        b.phone?.toLowerCase().includes(q) ||
+        b.whatsapp.toLowerCase().includes(q) ||
+        b.pickup_location.toLowerCase().includes(q) ||
+        b.destination.toLowerCase().includes(q) ||
+        b.id.toLowerCase().includes(q)
+      );
     }
+    setFiltered(rows);
+  }, [bookings, search, filter]);
+
+  const updateStatus = async (id: string, status: string) => {
+    await supabase.from('bookings').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
+    setBookings(prev => prev.map(b => b.id === id ? { ...b, status } : b));
   };
 
-  const updateBookingStatus = async (id: string, status: string) => {
-    try {
-      const { error } = await supabase
-        .from('bookings')
-        .update({ status })
-        .eq('id', id);
-
-      if (error) throw error;
-      fetchBookings();
-      setSelectedBooking(null);
-    } catch (error) {
-      console.error('Error updating booking:', error);
-    }
-  };
-
-  const filteredBookings = bookings.filter((booking) => {
-    const matchesSearch =
-      booking.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      booking.pickup_location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      booking.destination.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || booking.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
-  const getStatusBadge = (status: string) => {
-    const styles = {
-      pending: 'bg-amber-500/20 text-amber-400',
-      confirmed: 'bg-blue-500/20 text-blue-400',
-      completed: 'bg-[#0B5D3B]/20 text-[#0B5D3B]',
-      cancelled: 'bg-red-500/20 text-red-400',
-    };
-    return styles[status as keyof typeof styles] || styles.pending;
+  const deleteBooking = async (id: string) => {
+    if (!confirm('Delete this booking?')) return;
+    await supabase.from('bookings').delete().eq('id', id);
+    setBookings(prev => prev.filter(b => b.id !== id));
+    setExpanded(null);
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between gap-4">
-        <h1 className="text-2xl font-bold text-white">Bookings Management</h1>
+    <div>
+      <div className="flex items-center justify-between mb-5">
+        <h2 className="text-white font-bold text-xl">Bookings</h2>
+        <button
+          onClick={fetchBookings}
+          className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-lg text-gray-400 hover:text-white text-sm transition-colors"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          Refresh
+        </button>
+      </div>
 
-        <div className="flex gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search bookings..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:border-[#F4C430] focus:outline-none"
-            />
-          </div>
-
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:border-[#F4C430] focus:outline-none"
-          >
-            <option value="all" className="bg-gray-900">All Status</option>
-            <option value="pending" className="bg-gray-900">Pending</option>
-            <option value="confirmed" className="bg-gray-900">Confirmed</option>
-            <option value="completed" className="bg-gray-900">Completed</option>
-            <option value="cancelled" className="bg-gray-900">Cancelled</option>
-          </select>
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-5">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search name, phone, route..."
+            className="w-full pl-9 pr-4 py-2.5 bg-black border border-white/10 rounded-xl text-white text-sm placeholder-gray-600 focus:outline-none focus:border-[#F4C430] transition-colors"
+          />
         </div>
+        <select
+          value={filter}
+          onChange={e => setFilter(e.target.value)}
+          className="px-3 py-2.5 bg-black border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-[#F4C430]"
+        >
+          <option value="all">All Status</option>
+          {STATUS_OPTIONS.map(s => <option key={s} value={s} className="capitalize">{s}</option>)}
+        </select>
       </div>
 
       {loading ? (
-        <div className="text-center py-20">
-          <div className="animate-spin w-12 h-12 border-4 border-[#F4C430] border-t-transparent rounded-full mx-auto" />
+        <div className="flex items-center justify-center h-40">
+          <div className="animate-spin w-8 h-8 border-2 border-[#F4C430] border-t-transparent rounded-full" />
         </div>
       ) : (
-        <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-white/5 border-b border-white/10">
-                <tr>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-gray-400">Customer</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-gray-400">Route</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-gray-400">Date & Time</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-gray-400">Vehicle</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-gray-400">Status</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-gray-400">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/10">
-                {filteredBookings.map((booking) => (
-                  <motion.tr
-                    key={booking.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="hover:bg-white/5"
-                  >
-                    <td className="px-6 py-4">
-                      <div className="text-white font-medium">{booking.name}</div>
-                      <div className="text-gray-400 text-sm">{booking.country}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-white text-sm">{booking.pickup_location}</div>
-                      <div className="text-gray-400 text-sm">→ {booking.destination}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-white text-sm">{booking.booking_date}</div>
-                      <div className="text-gray-400 text-sm">{booking.booking_time}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-white text-sm capitalize">{booking.vehicle_type}</div>
-                      <div className="text-gray-400 text-sm">{booking.passengers} passengers</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(booking.status)}`}>
-                        {booking.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
+        <div className="space-y-3">
+          {filtered.length === 0 && (
+            <div className="text-center py-12 text-gray-500">No bookings found</div>
+          )}
+          {filtered.map((b) => (
+            <div key={b.id} className="bg-black rounded-xl border border-white/10 overflow-hidden">
+              {/* Row */}
+              <div
+                className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/2"
+                onClick={() => setExpanded(expanded === b.id ? null : b.id)}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-white font-semibold text-sm">{b.name}</span>
+                    <span className="text-gray-500 text-xs" dir="ltr">{b.country}</span>
+                  </div>
+                  <div className="text-gray-400 text-xs truncate">{b.pickup_location} → {b.destination}</div>
+                </div>
+                <div className="hidden sm:block text-gray-400 text-xs text-right shrink-0" dir="ltr">
+                  <div>{b.booking_date}</div>
+                  <div>{b.booking_time}</div>
+                </div>
+                <span className={`hidden sm:inline px-2 py-0.5 rounded border text-xs font-medium capitalize shrink-0 ${statusColor[b.status]}`}>
+                  {b.status}
+                </span>
+                <ChevronDown className={`w-4 h-4 text-gray-500 shrink-0 transition-transform ${expanded === b.id ? 'rotate-180' : ''}`} />
+              </div>
+
+              {/* Expanded */}
+              {expanded === b.id && (
+                <div className="border-t border-white/10 px-4 py-4">
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4 text-xs">
+                    {[
+                      ['Booking ID', b.id.slice(0, 8).toUpperCase()],
+                      ['WhatsApp', b.whatsapp],
+                      ['Phone', b.phone || '-'],
+                      ['Vehicle', b.vehicle_type],
+                      ['Passengers', b.passengers.toString()],
+                      ['Date', `${b.booking_date} ${b.booking_time}`],
+                    ].map(([label, value]) => (
+                      <div key={label}>
+                        <span className="text-gray-500">{label}: </span>
+                        <span className="text-white" dir="ltr">{value}</span>
+                      </div>
+                    ))}
+                    {b.message && (
+                      <div className="sm:col-span-2 lg:col-span-3">
+                        <span className="text-gray-500">Message: </span>
+                        <span className="text-white">{b.message}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex flex-wrap gap-2">
+                    {STATUS_OPTIONS.map((s) => (
                       <button
-                        onClick={() => setSelectedBooking(booking)}
-                        className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-white hover:bg-white/10"
+                        key={s}
+                        onClick={() => updateStatus(b.id, s)}
+                        disabled={b.status === s}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all border ${
+                          b.status === s
+                            ? `${statusColor[s]} cursor-default`
+                            : 'bg-white/5 text-gray-400 border-white/10 hover:text-white hover:bg-white/10'
+                        }`}
                       >
-                        <Eye className="w-5 h-5" />
+                        {s === b.status ? `✓ ${s}` : `Mark ${s}`}
                       </button>
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Booking Detail Modal */}
-      {selectedBooking && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80" onClick={() => setSelectedBooking(null)}>
-          <motion.div
-            className="relative max-w-lg w-full bg-gray-900 rounded-2xl overflow-hidden"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-6 border-b border-white/10">
-              <h2 className="text-xl font-bold text-white">Booking Details</h2>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div className="flex items-center gap-3">
-                <Users className="w-5 h-5 text-[#F4C430]" />
-                <div>
-                  <div className="text-white font-medium">{selectedBooking.name}</div>
-                  <div className="text-gray-400 text-sm">{selectedBooking.country}</div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Phone className="w-5 h-5 text-[#F4C430]" />
-                <div>
-                  <div className="text-white">WhatsApp: {selectedBooking.whatsapp}</div>
-                  {selectedBooking.phone && <div className="text-gray-400 text-sm">Phone: {selectedBooking.phone}</div>}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <MapPin className="w-5 h-5 text-[#0B5D3B]" />
-                <div>
-                  <div className="text-white">{selectedBooking.pickup_location} → {selectedBooking.destination}</div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Calendar className="w-5 h-5 text-[#F4C430]" />
-                <div>
-                  <div className="text-white">{selectedBooking.booking_date} at {selectedBooking.booking_time}</div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Car className="w-5 h-5 text-[#F4C430]" />
-                <div>
-                  <div className="text-white capitalize">{selectedBooking.vehicle_type}</div>
-                  <div className="text-gray-400 text-sm">{selectedBooking.passengers} passengers</div>
-                </div>
-              </div>
-
-              {selectedBooking.message && (
-                <div className="p-4 bg-white/5 rounded-xl">
-                  <div className="text-gray-400 text-sm mb-1">Message:</div>
-                  <div className="text-white">{selectedBooking.message}</div>
+                    ))}
+                    <button
+                      onClick={() => deleteBooking(b.id)}
+                      className="ml-auto px-3 py-1.5 bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg text-xs hover:bg-red-500/20 transition-all flex items-center gap-1.5"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete
+                    </button>
+                  </div>
                 </div>
               )}
-
-              <div className="flex items-center justify-between pt-4 border-t border-white/10">
-                <span className={`px-4 py-2 rounded-full text-sm font-medium ${getStatusBadge(selectedBooking.status)}`}>
-                  {selectedBooking.status.toUpperCase()}
-                </span>
-
-                <div className="flex gap-2">
-                  {selectedBooking.status === 'pending' && (
-                    <>
-                      <button
-                        onClick={() => updateBookingStatus(selectedBooking.id, 'confirmed')}
-                        className="px-4 py-2 bg-[#0B5D3B] text-white rounded-lg hover:bg-[#0B5D3B]/80"
-                      >
-                        <CheckCircle className="w-4 h-4 inline mr-1" />
-                        Confirm
-                      </button>
-                      <button
-                        onClick={() => updateBookingStatus(selectedBooking.id, 'cancelled')}
-                        className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-500/80"
-                      >
-                        <XCircle className="w-4 h-4 inline mr-1" />
-                        Cancel
-                      </button>
-                    </>
-                  )}
-                  {selectedBooking.status === 'confirmed' && (
-                    <button
-                      onClick={() => updateBookingStatus(selectedBooking.id, 'completed')}
-                      className="px-4 py-2 bg-[#F4C430] text-black rounded-lg hover:bg-[#e6b52e]"
-                    >
-                      Mark Complete
-                    </button>
-                  )}
-                </div>
-              </div>
             </div>
-          </motion.div>
+          ))}
         </div>
       )}
     </div>

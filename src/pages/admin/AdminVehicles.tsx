@@ -1,328 +1,154 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Plus, Pencil, Trash2, Save, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { Pencil, Trash2, Plus, X, Check } from 'lucide-react';
 
 interface Vehicle {
   id: string;
   name: string;
-  name_ar: string | null;
-  name_ur: string | null;
-  description: string | null;
-  description_ar: string | null;
-  description_ur: string | null;
+  name_ar?: string;
+  name_ur?: string;
+  name_tr?: string;
+  description?: string;
+  description_ar?: string;
+  description_ur?: string;
+  description_tr?: string;
   capacity: number;
   luggage: number;
-  image_url: string | null;
+  image_url?: string;
   is_available: boolean;
   sort_order: number;
 }
 
+const EMPTY: Omit<Vehicle, 'id'> = {
+  name: '', name_ar: '', name_ur: '', name_tr: '', description: '', description_ar: '', description_ur: '', description_tr: '',
+  capacity: 4, luggage: 2, image_url: '', is_available: true, sort_order: 0,
+};
+
 const AdminVehicles = () => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    name_ar: '',
-    name_ur: '',
-    description: '',
-    description_ar: '',
-    description_ur: '',
-    capacity: 4,
-    luggage: 2,
-    image_url: '',
-    is_available: true,
-    sort_order: 0,
-  });
+  const [editingId, setEditingId] = useState<string | 'new' | null>(null);
+  const [form, setForm] = useState<Omit<Vehicle, 'id'>>(EMPTY);
 
-  useEffect(() => {
-    fetchVehicles();
-  }, []);
-
-  const fetchVehicles = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('vehicles')
-        .select('*')
-        .order('sort_order');
-
-      if (error) throw error;
-      setVehicles(data || []);
-    } catch (error) {
-      console.error('Error fetching vehicles:', error);
-    } finally {
-      setLoading(false);
-    }
+  const fetch = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('vehicles').select('*').order('sort_order');
+    if (data) setVehicles(data);
+    setLoading(false);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      if (editingVehicle) {
-        const { error } = await supabase
-          .from('vehicles')
-          .update(formData)
-          .eq('id', editingVehicle.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('vehicles')
-          .insert([formData]);
-        if (error) throw error;
-      }
-      fetchVehicles();
-      setShowForm(false);
-      setEditingVehicle(null);
-      setFormData({
-        name: '',
-        name_ar: '',
-        name_ur: '',
-        description: '',
-        description_ar: '',
-        description_ur: '',
-        capacity: 4,
-        luggage: 2,
-        image_url: '',
-        is_available: true,
-        sort_order: 0,
-      });
-    } catch (error) {
-      console.error('Error saving vehicle:', error);
-    }
-  };
+  useEffect(() => { fetch(); }, []);
 
-  const handleEdit = (vehicle: Vehicle) => {
-    setEditingVehicle(vehicle);
-    setFormData({
-      name: vehicle.name,
-      name_ar: vehicle.name_ar || '',
-      name_ur: vehicle.name_ur || '',
-      description: vehicle.description || '',
-      description_ar: vehicle.description_ar || '',
-      description_ur: vehicle.description_ur || '',
-      capacity: vehicle.capacity,
-      luggage: vehicle.luggage,
-      image_url: vehicle.image_url || '',
-      is_available: vehicle.is_available,
-      sort_order: vehicle.sort_order,
+  const startEdit = (v: Vehicle) => {
+    setEditingId(v.id);
+    setForm({
+      name: v.name, name_ar: v.name_ar || '', name_ur: v.name_ur || '', name_tr: v.name_tr || '',
+      description: v.description || '', description_ar: v.description_ar || '', description_ur: v.description_ur || '', description_tr: v.description_tr || '',
+      capacity: v.capacity, luggage: v.luggage, image_url: v.image_url || '', is_available: v.is_available, sort_order: v.sort_order
     });
-    setShowForm(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this vehicle?')) return;
-    try {
-      const { error } = await supabase.from('vehicles').delete().eq('id', id);
-      if (error) throw error;
-      fetchVehicles();
-    } catch (error) {
-      console.error('Error deleting vehicle:', error);
+  const save = async () => {
+    if (!form.name.trim()) return;
+    if (editingId === 'new') {
+      await supabase.from('vehicles').insert([form]);
+    } else {
+      await supabase.from('vehicles').update(form).eq('id', editingId);
     }
+    setEditingId(null);
+    fetch();
   };
 
-  const toggleAvailability = async (vehicle: Vehicle) => {
-    try {
-      const { error } = await supabase
-        .from('vehicles')
-        .update({ is_available: !vehicle.is_available })
-        .eq('id', vehicle.id);
-      if (error) throw error;
-      fetchVehicles();
-    } catch (error) {
-      console.error('Error updating vehicle:', error);
-    }
+  const del = async (id: string) => {
+    if (!confirm('Delete this vehicle?')) return;
+    await supabase.from('vehicles').delete().eq('id', id);
+    fetch();
   };
+
+  const inputCls = 'w-full px-3 py-2 bg-gray-950 border border-white/10 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-[#F4C430] transition-colors';
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-white">Vehicles Management</h1>
+    <div>
+      <div className="flex items-center justify-between mb-5">
+        <h2 className="text-white font-bold text-xl">Vehicles</h2>
         <button
-          onClick={() => {
-            setShowForm(true);
-            setEditingVehicle(null);
-          }}
-          className="flex items-center px-4 py-2 bg-[#F4C430] text-black rounded-lg hover:shadow-lg"
+          onClick={() => { setEditingId('new'); setForm(EMPTY); }}
+          className="flex items-center gap-2 px-4 py-2 bg-[#F4C430] text-black font-semibold rounded-lg text-sm"
         >
-          <Plus className="w-5 h-5 mr-2" />
+          <Plus className="w-4 h-4" />
           Add Vehicle
         </button>
       </div>
 
-      {/* Form Modal */}
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80" onClick={() => setShowForm(false)}>
-          <motion.div
-            className="relative max-w-2xl w-full max-h-[90vh] overflow-y-auto bg-gray-900 rounded-2xl"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-6 border-b border-white/10 flex justify-between items-center sticky top-0 bg-gray-900">
-              <h2 className="text-xl font-bold text-white">
-                {editingVehicle ? 'Edit Vehicle' : 'Add New Vehicle'}
-              </h2>
-              <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-white">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div className="grid sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-2">Name (English)</label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    required
-                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-2">Name (Arabic)</label>
-                  <input
-                    type="text"
-                    value={formData.name_ar}
-                    onChange={(e) => setFormData({ ...formData, name_ar: e.target.value })}
-                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white"
-                    dir="rtl"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-2">Name (Urdu)</label>
-                  <input
-                    type="text"
-                    value={formData.name_ur}
-                    onChange={(e) => setFormData({ ...formData, name_ur: e.target.value })}
-                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white"
-                    dir="rtl"
-                  />
-                </div>
-              </div>
-
-              <div className="grid sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-2">Capacity</label>
-                  <input
-                    type="number"
-                    value={formData.capacity}
-                    onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) })}
-                    min="1"
-                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-2">Luggage Space</label>
-                  <input
-                    type="number"
-                    value={formData.luggage}
-                    onChange={(e) => setFormData({ ...formData, luggage: parseInt(e.target.value) })}
-                    min="0"
-                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-2">Sort Order</label>
-                  <input
-                    type="number"
-                    value={formData.sort_order}
-                    onChange={(e) => setFormData({ ...formData, sort_order: parseInt(e.target.value) })}
-                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Image URL</label>
-                <input
-                  type="url"
-                  value={formData.image_url}
-                  onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white"
-                  placeholder="https://..."
-                />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="is_available"
-                  checked={formData.is_available}
-                  onChange={(e) => setFormData({ ...formData, is_available: e.target.checked })}
-                  className="w-4 h-4"
-                />
-                <label htmlFor="is_available" className="text-gray-300">Available for booking</label>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full flex items-center justify-center px-6 py-3 bg-[#F4C430] text-black font-semibold rounded-lg"
-              >
-                <Save className="w-5 h-5 mr-2" />
-                {editingVehicle ? 'Update Vehicle' : 'Add Vehicle'}
-              </button>
-            </form>
-          </motion.div>
+      {/* Add/Edit Form */}
+      {editingId !== null && (
+        <div className="bg-black border border-[#F4C430]/20 rounded-xl p-5 mb-5">
+          <h3 className="text-white font-semibold text-sm mb-4">{editingId === 'new' ? 'Add New Vehicle' : 'Edit Vehicle'}</h3>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Name (English) *" className={inputCls} />
+            <input value={form.name_ar} onChange={e => setForm(p => ({ ...p, name_ar: e.target.value }))} placeholder="Name (Arabic)" className={inputCls} dir="rtl" />
+            <input value={form.name_ur} onChange={e => setForm(p => ({ ...p, name_ur: e.target.value }))} placeholder="Name (Urdu)" className={inputCls} dir="rtl" />
+            <input value={form.name_tr} onChange={e => setForm(p => ({ ...p, name_tr: e.target.value }))} placeholder="Name (Turkish)" className={inputCls} />
+            <input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Description (English)" className={`${inputCls} sm:col-span-2`} />
+            <input value={form.description_ar} onChange={e => setForm(p => ({ ...p, description_ar: e.target.value }))} placeholder="Description (Arabic)" className={inputCls} dir="rtl" />
+            <input value={form.description_ur} onChange={e => setForm(p => ({ ...p, description_ur: e.target.value }))} placeholder="Description (Urdu)" className={inputCls} dir="rtl" />
+            <input value={form.description_tr} onChange={e => setForm(p => ({ ...p, description_tr: e.target.value }))} placeholder="Description (Turkish)" className={inputCls} />
+            <input type="number" value={form.capacity} onChange={e => setForm(p => ({ ...p, capacity: parseInt(e.target.value) || 4 }))} placeholder="Capacity" className={inputCls} />
+            <input type="number" value={form.luggage} onChange={e => setForm(p => ({ ...p, luggage: parseInt(e.target.value) || 2 }))} placeholder="Luggage" className={inputCls} />
+            <input value={form.image_url} onChange={e => setForm(p => ({ ...p, image_url: e.target.value }))} placeholder="Image URL" className={`${inputCls} sm:col-span-2`} />
+            <input type="number" value={form.sort_order} onChange={e => setForm(p => ({ ...p, sort_order: parseInt(e.target.value) || 0 }))} placeholder="Sort Order" className={inputCls} />
+            <label className="flex items-center gap-2 text-gray-400 text-sm">
+              <input type="checkbox" checked={form.is_available} onChange={e => setForm(p => ({ ...p, is_available: e.target.checked }))} className="accent-[#F4C430]" />
+              Available
+            </label>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button onClick={save} className="flex items-center gap-2 px-4 py-2 bg-[#F4C430] text-black font-semibold rounded-lg text-sm">
+              <Check className="w-4 h-4" /> Save
+            </button>
+            <button onClick={() => setEditingId(null)} className="flex items-center gap-2 px-4 py-2 bg-white/5 text-gray-400 rounded-lg text-sm hover:text-white">
+              <X className="w-4 h-4" /> Cancel
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Vehicle List */}
       {loading ? (
-        <div className="text-center py-20">
-          <div className="animate-spin w-12 h-12 border-4 border-[#F4C430] border-t-transparent rounded-full mx-auto" />
+        <div className="flex items-center justify-center h-40">
+          <div className="animate-spin w-8 h-8 border-2 border-[#F4C430] border-t-transparent rounded-full" />
         </div>
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {vehicles.map((vehicle) => (
-            <motion.div
-              key={vehicle.id}
-              className="bg-white/5 border border-white/10 rounded-xl overflow-hidden"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <div className="relative h-40">
-                <img
-                  src={vehicle.image_url || 'https://images.pexels.com/photos/112460/pexels-photo-112460.jpeg'}
-                  alt={vehicle.name}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute top-2 right-2">
-                  <span className={`px-2 py-1 rounded text-xs ${vehicle.is_available ? 'bg-[#0B5D3B] text-white' : 'bg-red-500/50 text-white'}`}>
-                    {vehicle.is_available ? 'Available' : 'Unavailable'}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {vehicles.map(v => (
+            <div key={v.id} className="bg-black rounded-xl border border-white/10 overflow-hidden">
+              {v.image_url && (
+                <img src={v.image_url} alt={v.name} className="w-full h-40 object-cover" />
+              )}
+              <div className="p-4">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div>
+                    <h3 className="text-white font-semibold text-sm">{v.name}</h3>
+                    {v.name_ar && <p className="text-gray-500 text-xs" dir="rtl">{v.name_ar}</p>}
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${v.is_available ? 'bg-[#0B5D3B]/10 text-[#0B5D3B]' : 'bg-red-400/10 text-red-400'}`}>
+                    {v.is_available ? 'Active' : 'Hidden'}
                   </span>
                 </div>
-              </div>
-
-              <div className="p-4">
-                <h3 className="text-lg font-semibold text-white">{vehicle.name}</h3>
-                <p className="text-gray-400 text-sm mt-1">{vehicle.capacity} seats • {vehicle.luggage} luggage</p>
-
-                <div className="flex gap-2 mt-4">
-                  <button
-                    onClick={() => handleEdit(vehicle)}
-                    className="flex-1 flex items-center justify-center px-3 py-2 bg-white/5 text-white rounded-lg hover:bg-white/10"
-                  >
-                    <Pencil className="w-4 h-4 mr-1" />
-                    Edit
+                <p className="text-gray-400 text-xs mb-3">{v.description}</p>
+                <div className="flex gap-3 text-gray-500 text-xs mb-3">
+                  <span>{v.capacity} pax</span>
+                  <span>{v.luggage} bags</span>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => startEdit(v)} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 text-gray-400 rounded-lg text-xs hover:text-white transition-colors">
+                    <Pencil className="w-3.5 h-3.5" /> Edit
                   </button>
-                  <button
-                    onClick={() => toggleAvailability(vehicle)}
-                    className={`flex-1 px-3 py-2 rounded-lg ${vehicle.is_available ? 'bg-red-500/20 text-red-400' : 'bg-[#0B5D3B]/20 text-[#0B5D3B]'}`}
-                  >
-                    {vehicle.is_available ? 'Disable' : 'Enable'}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(vehicle.id)}
-                    className="px-3 py-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20"
-                  >
-                    <Trash2 className="w-4 h-4" />
+                  <button onClick={() => del(v.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg text-xs hover:bg-red-500/20 transition-colors">
+                    <Trash2 className="w-3.5 h-3.5" /> Delete
                   </button>
                 </div>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       )}

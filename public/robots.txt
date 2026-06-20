@@ -1,7 +1,13 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://zakarasma.com/sitemap.xml
+# Block admin area
+Disallow: /admin/
 
-# Crawl-delay (optional, for being polite to crawlers)
-Crawl-delay: 1
+# Contact
+# Phone: +966 50 141 6110
+# Email: Zakarasma@harmain.com, Zakarasma@umrahtaxi.com
+# WhatsApp: https://wa.me/966501416110
+# Location: https://maps.app.goo.gl/w47SGshx3WfPcx46A
+
+Sitemap: https://umrahtaxi.com/sitemap.xml

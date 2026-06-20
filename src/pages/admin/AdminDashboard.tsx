@@ -1,254 +1,141 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { useNavigate, Routes, Route } from 'react-router-dom';
-import {
-  LayoutDashboard,
-  Users,
-  Car,
-  MessageSquare,
-  Star,
-  Settings,
-  LogOut,
-  Menu,
-  X,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-} from 'lucide-react';
+import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import {
+  LayoutDashboard, CalendarCheck, Car, Star, Settings, LogOut, Menu, X, ChevronRight, DollarSign
+} from 'lucide-react';
+
+import AdminDashboardHome from './AdminDashboardHome';
 import AdminBookings from './AdminBookings';
 import AdminVehicles from './AdminVehicles';
+import AdminFares from './AdminFares';
 import AdminTestimonials from './AdminTestimonials';
 import AdminSettings from './AdminSettings';
 
-interface Stats {
-  pendingBookings: number;
-  totalBookings: number;
-  unreadInquiries: number;
-  approvedTestimonials: number;
-}
+const nav = [
+  { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+  { to: '/admin/bookings', label: 'Bookings', icon: CalendarCheck },
+  { to: '/admin/fares', label: 'Fares & Routes', icon: DollarSign },
+  { to: '/admin/vehicles', label: 'Vehicles', icon: Car },
+  { to: '/admin/testimonials', label: 'Testimonials', icon: Star },
+  { to: '/admin/settings', label: 'Settings', icon: Settings },
+];
 
 const AdminDashboard = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const location = useLocation();
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [stats, setStats] = useState<Stats>({
-    pendingBookings: 0,
-    totalBookings: 0,
-    unreadInquiries: 0,
-    approvedTestimonials: 0,
-  });
-  const [currentPath, setCurrentPath] = useState('/admin');
 
-  useEffect(() => {
-    fetchStats();
-  }, []);
-
-  const fetchStats = async () => {
-    try {
-      const [bookingsResult, inquiriesResult, testimonialsResult] = await Promise.all([
-        supabase.from('bookings').select('id, status', { count: 'exact' }),
-        supabase.from('inquiries').select('id', { count: 'exact' }).eq('status', 'unread'),
-        supabase.from('testimonials').select('id', { count: 'exact' }).eq('is_approved', true),
-      ]);
-
-      setStats({
-        pendingBookings: bookingsResult.data?.filter((b: any) => b.status === 'pending').length || 0,
-        totalBookings: bookingsResult.count || 0,
-        unreadInquiries: inquiriesResult.count || 0,
-        approvedTestimonials: testimonialsResult.count || 0,
-      });
-    } catch (error) {
-      console.error('Error fetching stats:', error);
-    }
-  };
+  useEffect(() => setSidebarOpen(false), [location]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate('/admin/login');
   };
 
-  const menuItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
-    { icon: Users, label: 'Bookings', path: '/admin/bookings', badge: stats.pendingBookings },
-    { icon: Car, label: 'Vehicles', path: '/admin/vehicles' },
-    { icon: MessageSquare, label: 'Inquiries', path: '/admin/inquiries', badge: stats.unreadInquiries },
-    { icon: Star, label: 'Testimonials', path: '/admin/testimonials' },
-    { icon: Settings, label: 'Settings', path: '/admin/settings' },
-  ];
-
-  const StatCard = ({ title, value, icon: Icon, color }: { title: string; value: number; icon: any; color: string }) => (
-    <motion.div
-      className="p-6 bg-white/5 border border-white/10 rounded-xl"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileHover={{ scale: 1.02 }}
-    >
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-gray-400 text-sm">{title}</p>
-          <p className="text-3xl font-bold text-white mt-1">{value}</p>
-        </div>
-        <div className={`p-3 rounded-xl ${color}`}>
-          <Icon className="w-6 h-6" />
-        </div>
-      </div>
-    </motion.div>
-  );
+  const isActive = (item: { to: string; exact?: boolean }) =>
+    item.exact ? location.pathname === item.to : location.pathname.startsWith(item.to);
 
   return (
-    <div className="min-h-screen bg-black flex">
+    <div className="min-h-screen bg-gray-950 flex">
+      {/* Overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-30 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <aside
-        className={`fixed lg:relative z-50 h-screen bg-gray-900 border-r border-white/10 transition-all duration-300 ${
-          sidebarOpen ? 'w-64' : 'w-0 lg:w-20'
+        className={`fixed top-0 left-0 h-full w-64 bg-black border-r border-white/10 z-40 flex flex-col transition-transform duration-300 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
-        <div className="h-full overflow-hidden">
-          {/* Logo */}
-          <div className="p-6 border-b border-white/10">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#F4C430] to-[#0B5D3B] flex items-center justify-center">
-                <span className="text-black font-bold text-lg">Z</span>
-              </div>
-              {sidebarOpen && <span className="text-white font-bold">Admin Panel</span>}
-            </div>
+        {/* Logo */}
+        <div className="flex items-center gap-3 px-5 py-5 border-b border-white/10">
+          <div className="relative w-10 h-10 flex items-center justify-center">
+            <div className="absolute w-8 h-8 bg-gradient-to-br from-gray-900 to-black border-2 border-[#F4C430] rounded-sm transform rotate-12" />
+            <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 rounded-t-full bg-gradient-to-b from-[#0B5D3B] to-[#0B5D3B]/50" />
+            <span className="relative text-[#F4C430] font-black text-sm mt-1">Z</span>
           </div>
+          <div>
+            <div className="text-white text-sm font-bold">Admin Panel</div>
+            <div className="text-gray-500 text-xs">Zakarasma UT</div>
+          </div>
+          <button
+            className="ml-auto lg:hidden text-gray-400"
+            onClick={() => setSidebarOpen(false)}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
 
-          {/* Menu */}
-          <nav className="p-4 space-y-1">
-            {menuItems.map((item) => (
-              <button
-                key={item.path}
-                onClick={() => {
-                  setCurrentPath(item.path);
-                  navigate(item.path);
-                }}
-                className={`w-full flex items-center space-x-3 rtl:space-x-reverse px-4 py-3 rounded-xl transition-all ${
-                  currentPath === item.path
-                    ? 'bg-[#F4C430] text-black'
-                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
+        {/* Nav */}
+        <nav className="flex-1 px-3 py-4 space-y-1">
+          {nav.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item);
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  active
+                    ? 'bg-[#F4C430]/10 text-[#F4C430]'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
                 }`}
               >
-                <item.icon className="w-5 h-5" />
-                {sidebarOpen && (
-                  <>
-                    <span className="flex-1 text-left rtl:text-right">{item.label}</span>
-                    {item.badge && item.badge > 0 && (
-                      <span className={`px-2 py-0.5 rounded-full text-xs ${currentPath === item.path ? 'bg-black/20' : 'bg-[#F4C430] text-black'}`}>
-                        {item.badge}
-                      </span>
-                    )}
-                  </>
-                )}
-              </button>
-            ))}
-          </nav>
+                <Icon className="w-4 h-4 shrink-0" />
+                {item.label}
+                {active && <ChevronRight className="w-3 h-3 ml-auto" />}
+              </Link>
+            );
+          })}
+        </nav>
 
-          {/* Logout */}
-          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10">
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center space-x-3 rtl:space-x-reverse px-4 py-3 rounded-xl text-gray-400 hover:bg-red-500/10 hover:text-red-400 transition-all"
-            >
-              <LogOut className="w-5 h-5" />
-              {sidebarOpen && <span>Logout</span>}
-            </button>
-          </div>
+        {/* Logout */}
+        <div className="px-3 py-4 border-t border-white/10">
+          <Link to="/" className="flex items-center gap-3 px-3 py-2 text-gray-400 hover:text-white text-sm mb-1">
+            View Site
+          </Link>
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-400 hover:bg-red-500/10 transition-all"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign Out
+          </button>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-x-hidden">
-        {/* Header */}
-        <header className="h-16 border-b border-white/10 flex items-center justify-between px-6 bg-gray-900/50">
+      {/* Main */}
+      <div className="flex-1 lg:ml-64 flex flex-col min-h-screen">
+        {/* Top Bar */}
+        <header className="sticky top-0 z-20 bg-gray-950/95 backdrop-blur border-b border-white/10 flex items-center px-4 h-14">
           <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/5"
+            className="lg:hidden p-2 text-gray-400 hover:text-white"
+            onClick={() => setSidebarOpen(true)}
           >
-            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            <Menu className="w-5 h-5" />
           </button>
-
-          <div className="flex items-center space-x-4">
-            <span className="text-gray-400 text-sm">Welcome, Admin</span>
-            <div className="w-8 h-8 rounded-full bg-[#F4C430] flex items-center justify-center text-black font-bold">
-              A
-            </div>
-          </div>
+          <span className="text-white font-semibold text-sm ml-2 lg:ml-0">
+            {nav.find(isActive)?.label || 'Admin'}
+          </span>
         </header>
 
-        {/* Page Content */}
-        <div className="p-6">
+        {/* Content */}
+        <main className="flex-1 p-4 sm:p-6">
           <Routes>
-            <Route path="/" element={
-              <div className="space-y-6">
-                <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-
-                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <StatCard
-                    title="Pending Bookings"
-                    value={stats.pendingBookings}
-                    icon={Clock}
-                    color="bg-amber-500/20 text-amber-400"
-                  />
-                  <StatCard
-                    title="Total Bookings"
-                    value={stats.totalBookings}
-                    icon={CheckCircle}
-                    color="bg-[#0B5D3B]/20 text-[#0B5D3B]"
-                  />
-                  <StatCard
-                    title="Unread Inquiries"
-                    value={stats.unreadInquiries}
-                    icon={AlertCircle}
-                    color="bg-red-500/20 text-red-400"
-                  />
-                  <StatCard
-                    title="Testimonials"
-                    value={stats.approvedTestimonials}
-                    icon={Star}
-                    color="bg-[#F4C430]/20 text-[#F4C430]"
-                  />
-                </div>
-
-                {/* Quick Actions */}
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <button
-                    onClick={() => navigate('/admin/bookings')}
-                    className="p-6 bg-white/5 border border-white/10 rounded-xl text-left hover:border-[#F4C430]/30 transition-all group"
-                  >
-                    <Users className="w-8 h-8 text-[#F4C430] mb-4" />
-                    <h3 className="text-lg font-semibold text-white group-hover:text-[#F4C430]">Manage Bookings</h3>
-                    <p className="text-gray-400 text-sm mt-1">View and manage all customer bookings</p>
-                  </button>
-
-                  <button
-                    onClick={() => navigate('/admin/vehicles')}
-                    className="p-6 bg-white/5 border border-white/10 rounded-xl text-left hover:border-[#F4C430]/30 transition-all group"
-                  >
-                    <Car className="w-8 h-8 text-[#0B5D3B] mb-4" />
-                    <h3 className="text-lg font-semibold text-white group-hover:text-[#F4C430]">Manage Vehicles</h3>
-                    <p className="text-gray-400 text-sm mt-1">Add, edit, or remove vehicles</p>
-                  </button>
-
-                  <button
-                    onClick={() => navigate('/admin/testimonials')}
-                    className="p-6 bg-white/5 border border-white/10 rounded-xl text-left hover:border-[#F4C430]/30 transition-all group"
-                  >
-                    <Star className="w-8 h-8 text-[#F4C430] mb-4" />
-                    <h3 className="text-lg font-semibold text-white group-hover:text-[#F4C430]">Testimonials</h3>
-                    <p className="text-gray-400 text-sm mt-1">Approve and manage reviews</p>
-                  </button>
-                </div>
-              </div>
-            } />
-            <Route path="/bookings" element={<AdminBookings />} />
-            <Route path="/vehicles" element={<AdminVehicles />} />
-            <Route path="/testimonials" element={<AdminTestimonials />} />
-            <Route path="/settings" element={<AdminSettings />} />
-            <Route path="/inquiries" element={<AdminBookings />} />
+            <Route index element={<AdminDashboardHome />} />
+            <Route path="bookings" element={<AdminBookings />} />
+            <Route path="fares" element={<AdminFares />} />
+            <Route path="vehicles" element={<AdminVehicles />} />
+            <Route path="testimonials" element={<AdminTestimonials />} />
+            <Route path="settings" element={<AdminSettings />} />
           </Routes>
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 };
